@@ -1,0 +1,13 @@
+node_modules/
+dist/
+
+# Environnement — le modèle .env.example est versionné
+.env
+.env.*
+!.env.example
+
+# Seed transpilé, produit au build Docker
+prisma/seed.mjs
+
+*.log
+.DS_Store

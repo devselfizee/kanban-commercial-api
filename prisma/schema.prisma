@@ -1,0 +1,774 @@
+// Kanban commercial Selfizee — modèle de données
+// Réf. : Proposition de pipeline commercial et LLD pour Selfizee (Manus AI, 21/09/2026)
+//
+// Principe structurant : une fiche client unique, visible dans trois espaces de travail.
+// On ne confond jamais quatre notions distinctes :
+//   - ModeAcquisition / CanalDetaille : comment le contact est arrivé
+//   - StatutLead                      : sa maturité avant qualification
+//   - EtapeCommerciale                : l'avancement de la vente
+//   - StatutLld                       : des événements de dossier et de contrat
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Énumérations — listes de valeurs contrôlées
+// ---------------------------------------------------------------------------
+
+enum Role {
+  COMMERCIAL
+  COLLABORATRICE_LLD
+  MANAGER
+  DIRECTION
+}
+
+enum ModeAcquisition {
+  ENTRANT
+  PROSPECTION
+  REACTIVATION
+}
+
+/// Canal détaillé. Le canal est un champ filtrable, jamais une colonne de pipeline.
+enum CanalDetaille {
+  // Entrant — demandes spontanées
+  FORMULAIRE_SITE
+  APPEL_ENTRANT
+  EMAIL_ENTRANT
+  CHAT
+  RESEAU_SOCIAL_ENTRANT
+  DEMANDE_DEVIS
+  DEMANDE_DEMONSTRATION
+  // Entrant — évènementiel
+  SALON
+  EVENEMENT
+  DEMONSTRATION
+  SCAN_BADGE
+  CARTE_DE_VISITE
+  // Entrant — apport
+  PARTENAIRE
+  APPORTEUR
+  PRESCRIPTEUR
+  REVENDEUR
+  RECOMMANDATION_CLIENT
+  // Prospection
+  LISTE_COMPTES_CIBLES
+  APPEL_SORTANT
+  EMAIL_SORTANT
+  LINKEDIN
+  VISITE_TERRAIN
+  SEQUENCE_PROSPECTION
+  // Réactivation
+  ANCIEN_CLIENT
+  ANCIEN_DEVIS
+  FIN_DE_CONTRAT
+  RENOUVELLEMENT
+  UPSELL
+  CROSS_SELL
+  // Reprise de données : ne doit pas fausser les mesures d'acquisition
+  MIGRATION_HISTORIQUE
+}
+
+/// Liste à ajuster après un mois de données réelles.
+enum SegmentClient {
+  AGENCE_EVENEMENTIELLE
+  LIEU_DE_RECEPTION
+  HOTEL_CAMPING
+  ENTREPRISE
+  COLLECTIVITE_ASSOCIATION
+  ANIMATION_LOISIRS
+  COMMERCE
+  LOUEUR_PRESTATAIRE_EVENEMENTIEL
+  ETABLISSEMENT_ENSEIGNEMENT
+  PARTICULIER
+  AUTRE_PROFESSIONNEL
+}
+
+/// Ne jamais forcer un choix de financement dès le premier contact.
+enum ProjetRecherche {
+  ACHAT
+  LLD
+  LOCATION_COURTE_DUREE
+  ACHAT_OU_LLD_A_CONSEILLER
+  PRESTATION_PONCTUELLE
+  A_PRECISER
+}
+
+/// Priorité commerciale visible. N'inclut jamais d'appréciation de solvabilité.
+enum Priorite {
+  P1_REPONSE_IMMEDIATE
+  P2_A_TRAITER_AUJOURDHUI
+  P3_SUIVI_PLANIFIE
+  P4_NURTURING
+}
+
+/// Pipeline n°1 — boîte de qualification des leads.
+enum StatutLead {
+  NOUVEAU_NON_ATTRIBUE
+  A_PRENDRE_EN_CHARGE
+  PREMIER_CONTACT_A_REALISER
+  CONTACT_EN_COURS
+  CONTACT_ETABLI_A_QUALIFIER
+  QUALIFIE_A_CONVERTIR
+  NURTURING_A_REACTIVER
+  NON_QUALIFIE_CLOTURE
+}
+
+enum MotifClotureLead {
+  PAS_DE_BESOIN
+  MAUVAIS_SEGMENT
+  DOUBLON
+  COORDONNEES_INEXPLOITABLES
+  REFUS_EXPLICITE
+  AUTRE
+}
+
+/// Pipeline n°2 — pipeline commercial unique (achat comme LLD).
+enum EtapeCommerciale {
+  QUALIFICATION_VALIDEE
+  DECOUVERTE_SOLUTION
+  OFFRE_A_CONSTRUIRE
+  OFFRE_ENVOYEE
+  NEGOCIATION_VALIDATION_CLIENT
+  DOSSIER_LLD_EN_COURS
+  CONTRATS_A_SIGNER
+  LIVRAISON_MISE_EN_SERVICE
+  GAGNE_ACTIF
+  PERDU_ABANDONNE
+}
+
+enum MotifClotureOpportunite {
+  CONCURRENT
+  BUDGET
+  PROJET_REPORTE
+  PROJET_ANNULE
+  SANS_REPONSE
+  HORS_PERIMETRE
+  DOUBLON
+  AUTRE
+}
+
+/// Pipeline n°3 — dossier LLD / GRENKE. Des faits observables, jamais une décision déduite.
+enum StatutLld {
+  LLD_A_ETUDIER
+  DOSSIER_A_PREPARER
+  EN_ATTENTE_ELEMENTS_CLIENT
+  PRET_A_TRANSMETTRE
+  TRANSMIS_A_GRENKE
+  RETOUR_ANALYSE_EN_ATTENTE
+  REPONSE_COMMUNIQUEE_PAR_GRENKE
+  CONTRAT_A_SIGNER
+  SIGNE_LIVRAISON_A_CONFIRMER
+  LIVRAISON_CONFIRMEE_CONTRAT_ACTIF
+  CLOTURE_NON_POURSUIVI
+}
+
+/// Éviter le libellé « non finançable », qui masquerait la nature réelle de l'information.
+enum MotifClotureLld {
+  CLIENT_RETIRE_SA_DEMANDE
+  DOSSIER_INCOMPLET_APRES_RELANCES
+  SOLUTION_ACHAT_RETENUE
+  SOLUTION_LOCATION_COURTE_DUREE_RETENUE
+  RETOUR_PARTENAIRE_DEFAVORABLE_COMMUNIQUE
+  PROJET_REPORTE
+  DOUBLON
+  AUTRE
+}
+
+enum TypeActivite {
+  APPEL_ENTRANT
+  APPEL_SORTANT
+  EMAIL_ENTRANT
+  EMAIL_SORTANT
+  MESSAGE_WHATSAPP
+  MESSAGE_SMS
+  MESSAGE_LINKEDIN
+  REUNION
+  DEMONSTRATION
+  EVENEMENT_SALON_VISITE
+  DEVIS_OFFRE
+  ACTIVITE_LLD
+  TACHE_INTERNE
+  NOTE
+}
+
+enum SensActivite {
+  ENTRANT
+  SORTANT
+  INTERNE
+}
+
+enum TypeObjet {
+  LEAD
+  OPPORTUNITE
+  DOSSIER_LLD
+  ORGANISATION
+  CONTACT
+}
+
+// ---------------------------------------------------------------------------
+// Utilisateurs
+// ---------------------------------------------------------------------------
+
+model Utilisateur {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  nom        String
+  prenom     String
+  role       Role     @default(COMMERCIAL)
+  actif      Boolean  @default(true)
+  motDePasse String?
+  creeLe     DateTime @default(now())
+  majLe      DateTime @updatedAt
+
+  leads                 Lead[]          @relation("LeadProprietaire")
+  organisations         Organisation[]  @relation("OrganisationProprietaire")
+  opportunites          Opportunite[]   @relation("OpportuniteCommercial")
+  dossiersLldGeres      DossierLld[]    @relation("LldCollaboratrice")
+  dossiersLldCommercial DossierLld[]    @relation("LldCommercial")
+  activites             Activite[]      @relation("ActiviteAuteur")
+  taches                Tache[]         @relation("TacheResponsable")
+  journal               JournalEntree[] @relation("JournalAuteur")
+
+  @@map("utilisateurs")
+}
+
+// ---------------------------------------------------------------------------
+// Objet 1 — Organisation : une société, un lieu, une agence ou un client particulier
+// ---------------------------------------------------------------------------
+
+model Organisation {
+  id             String        @id @default(cuid())
+  reference      String        @unique // ORG-AAAA-NNNNN
+  nom            String
+  segment        SegmentClient
+  estParticulier Boolean       @default(false)
+
+  email      String?
+  telephone  String? // normalisé E.164 pour la détection de doublons
+  siteWeb    String?
+  siren      String?
+  adresse    String?
+  codePostal String?
+  ville      String?
+  pays       String? @default("France")
+
+  /// Source initiale : conservée telle quelle, jamais écrasée par une relance ultérieure.
+  modeAcquisitionInitial ModeAcquisition?
+  canalInitial           CanalDetaille?
+  dateCollecte           DateTime?
+  fondementContact       String? // base légale RGPD de la prise de contact
+
+  proprietaireId String?
+  proprietaire   Utilisateur? @relation("OrganisationProprietaire", fields: [proprietaireId], references: [id])
+
+  /// Rapprochement avec le CRM (table `clients`). Le CRM fait autorité sur les
+  /// champs d'identité ; le kanban ne les réécrit jamais vers lui.
+  /// Même principe que les colonnes `id_in_sellsy` / `id_in_wp` déjà utilisées
+  /// côté CRM pour les systèmes tiers.
+  idCrm            Int?      @unique
+  synchroniseLe    DateTime?
+  /// Horodatage `modified` reçu du CRM : permet d'ignorer un événement périmé
+  /// livré dans le désordre.
+  versionCrm       DateTime?
+
+  notes  String?
+  creeLe DateTime @default(now())
+  majLe  DateTime @updatedAt
+
+  /// Fusion de doublon : la fiche absorbée pointe vers la fiche conservée.
+  fusionneeDansId String?
+  fusionneeDans   Organisation?  @relation("Fusion", fields: [fusionneeDansId], references: [id])
+  fusions         Organisation[] @relation("Fusion")
+
+  contacts     Contact[]
+  leads        Lead[]
+  opportunites Opportunite[]
+
+  @@index([nom])
+  @@index([email])
+  @@index([telephone])
+  @@index([siren])
+  @@map("organisations")
+}
+
+// ---------------------------------------------------------------------------
+// Objet 2 — Contact : un interlocuteur identifié
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id        String  @id @default(cuid())
+  nom       String
+  prenom    String?
+  role      String? // fonction chez le client
+  email     String?
+  telephone String?
+  mobile    String?
+
+  /// Consentements et préférences de contact (RGPD).
+  accepteEmail     Boolean @default(true)
+  accepteTelephone Boolean @default(true)
+  accepteSms       Boolean @default(false)
+  oppositionNotee  String?
+
+  estDecideurEconomique Boolean @default(false)
+
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id])
+
+  /// Rapprochement avec le CRM (table `client_contacts`).
+  idCrm         Int?      @unique
+  synchroniseLe DateTime?
+  versionCrm    DateTime?
+
+  notes  String?
+  creeLe DateTime @default(now())
+  majLe  DateTime @updatedAt
+
+  leadsPrincipaux        Lead[]        @relation("LeadContactPrincipal")
+  opportunitesPrincipale Opportunite[] @relation("OpportuniteContactPrincipal")
+  activites              Activite[]    @relation("ActiviteContact")
+
+  @@index([email])
+  @@index([telephone])
+  @@index([nom])
+  @@map("contacts")
+}
+
+// ---------------------------------------------------------------------------
+// Objet 3 — Lead : pas encore commercialement qualifié (pipeline n°1)
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id        String @id @default(cuid())
+  reference String @unique // L-AAAA-NNNNN
+
+  modeAcquisition ModeAcquisition
+  canalDetaille   CanalDetaille
+  statut          StatutLead      @default(NOUVEAU_NON_ATTRIBUE)
+  priorite        Priorite        @default(P3_SUIVI_PLANIFIE)
+
+  segment          SegmentClient?
+  projetRecherche  ProjetRecherche @default(A_PRECISER)
+  besoinResume     String?
+  horizonIndicatif String? // fourchette acceptée : ne pas exiger de date exacte trop tôt
+  ville            String?
+
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id])
+
+  contactPrincipalId String?
+  contactPrincipal   Contact? @relation("LeadContactPrincipal", fields: [contactPrincipalId], references: [id])
+
+  /// Coordonnées saisies avant création de l'organisation / du contact.
+  nomBrut       String?
+  emailBrut     String?
+  telephoneBrut String?
+
+  proprietaireId  String?
+  proprietaire    Utilisateur? @relation("LeadProprietaire", fields: [proprietaireId], references: [id])
+  dateAttribution DateTime?
+
+  /// Une carte n'est jamais « perdue » : prochaine action datée ou motif de clôture.
+  prochaineActionLe    DateTime?
+  prochaineActionLabel String?
+  dernierContactLe     DateTime?
+  premierContactLe     DateTime? // alimente le délai de première prise en charge
+  dateReactivation     DateTime?
+
+  motifCloture       MotifClotureLead?
+  commentaireCloture String?
+  dateCloture        DateTime?
+
+  /// Position dans la colonne du kanban.
+  rang Int @default(0)
+
+  entreEnEtapeLe DateTime @default(now()) // âge dans l'étape
+  creeLe         DateTime @default(now())
+  majLe          DateTime @updatedAt
+
+  /// La conversion conserve l'historique : le lead n'est pas supprimé.
+  opportunite Opportunite?
+
+  activites Activite[] @relation("ActiviteLead")
+  taches    Tache[]    @relation("TacheLead")
+
+  @@index([statut, rang])
+  @@index([proprietaireId])
+  @@index([prochaineActionLe])
+  @@map("leads")
+}
+
+// ---------------------------------------------------------------------------
+// Objet 4 — Opportunité : une vente ou un projet qualifié (pipeline n°2)
+// ---------------------------------------------------------------------------
+
+model Opportunite {
+  id        String @id @default(cuid())
+  reference String @unique // OPP-AAAA-NNNNN
+  titre     String
+
+  etape    EtapeCommerciale @default(QUALIFICATION_VALIDEE)
+  priorite Priorite         @default(P3_SUIVI_PLANIFIE)
+
+  projetRecherche   ProjetRecherche @default(A_PRECISER)
+  solutionEnvisagee String?
+  produitGamme      String?
+  usagePrevu        String?
+  quantiteBornes    Int?
+  lieuInstallation  String?
+
+  /// Les valeurs sont tenues séparément : on n'additionne jamais une vente directe
+  /// et un total de loyers comme s'il s'agissait du même indicateur.
+  montantVente               Decimal? @db.Decimal(12, 2)
+  montantMiseEnPlace         Decimal? @db.Decimal(12, 2)
+  loyerMensuelEnvisage       Decimal? @db.Decimal(12, 2)
+  dureeLldMois               Int? // champ numérique, jamais une colonne de pipeline
+  valeurContractuelleEstimee Decimal? @db.Decimal(12, 2)
+
+  probabiliteInterne      Int? // 0-100, appréciation commerciale
+  dateCible               DateTime?
+  dateEvenement           DateTime?
+  concurrentIdentifie     String?
+  echeanceContratExistant DateTime?
+
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+
+  contactPrincipalId String?
+  contactPrincipal   Contact? @relation("OpportuniteContactPrincipal", fields: [contactPrincipalId], references: [id])
+
+  /// Le commercial reste propriétaire de la relation, y compris en LLD.
+  commercialId String?
+  commercial   Utilisateur? @relation("OpportuniteCommercial", fields: [commercialId], references: [id])
+
+  /// Continuité du lead : l'historique est conservé, pas dupliqué.
+  leadId String? @unique
+  lead   Lead?   @relation(fields: [leadId], references: [id])
+
+  prochaineActionLe    DateTime?
+  prochaineActionLabel String?
+  dernierContactLe     DateTime?
+
+  dateOffreEnvoyee  DateTime?
+  dateRelancePrevue DateTime?
+
+  motifCloture       MotifClotureOpportunite?
+  commentaireCloture String?
+  dateCloture        DateTime?
+  montantRetenu      Decimal?                 @db.Decimal(12, 2)
+
+  rang Int @default(0)
+
+  entreEnEtapeLe DateTime @default(now())
+  creeLe         DateTime @default(now())
+  majLe          DateTime @updatedAt
+
+  /// Reliée à un dossier LLD unique, sans créer une seconde fiche client.
+  dossierLld DossierLld?
+
+  devis     Devis[]
+  activites Activite[] @relation("ActiviteOpportunite")
+  taches    Tache[]    @relation("TacheOpportunite")
+
+  @@index([etape, rang])
+  @@index([commercialId])
+  @@index([prochaineActionLe])
+  @@map("opportunites")
+}
+
+// ---------------------------------------------------------------------------
+// Objet 5 — Dossier LLD / GRENKE (pipeline n°3)
+// ---------------------------------------------------------------------------
+
+model DossierLld {
+  id        String @id @default(cuid())
+  reference String @unique // LLD-AAAA-NNNNN
+
+  statut StatutLld @default(LLD_A_ETUDIER)
+
+  /// Selfizee propose 1 à 36 mois. Une durée hors plage partenaire connue déclenche
+  /// une alerte interne « compatibilité partenaire à confirmer », sans écarter le dossier.
+  dureeDemandeeMois Int
+  montantFinance    Decimal? @db.Decimal(12, 2)
+  loyerMensuel      Decimal? @db.Decimal(12, 2)
+  locataire         String? // raison sociale du locataire si différente de l'organisation
+
+  opportuniteId String      @unique
+  opportunite   Opportunite @relation(fields: [opportuniteId], references: [id])
+
+  collaboratriceId String?
+  collaboratrice   Utilisateur? @relation("LldCollaboratrice", fields: [collaboratriceId], references: [id])
+
+  commercialId String?
+  commercial   Utilisateur? @relation("LldCommercial", fields: [commercialId], references: [id])
+
+  /// Faits observables uniquement — aucune décision de financement n'est déduite.
+  dateTransmission     DateTime?
+  canalTransmission    String?
+  auteurTransmission   String?
+  preuveTransmission   String? // référence, accusé ou lien
+  dateRetourCommunique DateTime?
+  sourceRetour         String?
+  contenuRetour        String?
+
+  dateContratDisponible  DateTime?
+  signatureClientLe      DateTime?
+  signatureAutresLe      DateTime?
+  dateLivraisonPrevue    DateTime?
+  dateLivraisonConfirmee DateTime?
+
+  prochaineActionLe    DateTime?
+  prochaineActionLabel String?
+  prochaineRelanceLe   DateTime?
+
+  elementAttenduLabel String? // « en attente d'éléments client » : quoi, pour qui, pour quand
+  elementDemandeLe    DateTime?
+  elementDemandeA     String?
+
+  motifCloture       MotifClotureLld?
+  commentaireCloture String?
+  dateCloture        DateTime?
+
+  rang Int @default(0)
+
+  entreEnEtapeLe DateTime @default(now())
+  creeLe         DateTime @default(now())
+  majLe          DateTime @updatedAt
+
+  checklist ChecklistItem[]
+  documents Document[]
+  activites Activite[]      @relation("ActiviteLld")
+  taches    Tache[]         @relation("TacheLld")
+
+  @@index([statut, rang])
+  @@index([collaboratriceId])
+  @@map("dossiers_lld")
+}
+
+/// Checklist interne de complétude : ne présume pas des pièces exigées par le partenaire.
+model ChecklistItem {
+  id      String    @id @default(cuid())
+  libelle String
+  fait    Boolean   @default(false)
+  faitLe  DateTime?
+  faitPar String?
+  ordre   Int       @default(0)
+
+  dossierLldId String
+  dossierLld   DossierLld @relation(fields: [dossierLldId], references: [id], onDelete: Cascade)
+
+  @@index([dossierLldId, ordre])
+  @@map("checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// Devis
+// ---------------------------------------------------------------------------
+
+model Devis {
+  id           String    @id @default(cuid())
+  reference    String    @unique
+  version      Int       @default(1)
+  montant      Decimal?  @db.Decimal(12, 2)
+  dateEnvoi    DateTime?
+  dateValidite DateTime?
+  lienDocument String?
+
+  opportuniteId String
+  opportunite   Opportunite @relation(fields: [opportuniteId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now())
+  majLe  DateTime @updatedAt
+
+  @@map("devis")
+}
+
+// ---------------------------------------------------------------------------
+// Documents — les pièces liées au financement sont d'accès restreint
+// ---------------------------------------------------------------------------
+
+model Document {
+  id     String  @id @default(cuid())
+  nom    String
+  chemin String
+  type   String?
+  taille Int?
+
+  /// Un document sensible n'est visible que des personnes qui le traitent.
+  confidentiel Boolean @default(false)
+
+  dossierLldId String?
+  dossierLld   DossierLld? @relation(fields: [dossierLldId], references: [id], onDelete: Cascade)
+
+  deposeParId String?
+  deposeLe    DateTime @default(now())
+
+  @@map("documents")
+}
+
+// ---------------------------------------------------------------------------
+// Activités — chaque interaction est consignée de façon structurée
+// ---------------------------------------------------------------------------
+
+model Activite {
+  id      String       @id @default(cuid())
+  type    TypeActivite
+  sens    SensActivite @default(INTERNE)
+  objet   String
+  contenu String?
+
+  dateReelle   DateTime @default(now())
+  dureeMinutes Int?
+
+  /// Chaque activité terminée produit soit une prochaine action, soit une conclusion explicite.
+  resultat      String?
+  suiteAttendue String?
+  sansSuite     Boolean @default(false)
+
+  auteurId String?
+  auteur   Utilisateur? @relation("ActiviteAuteur", fields: [auteurId], references: [id])
+
+  contactId String?
+  contact   Contact? @relation("ActiviteContact", fields: [contactId], references: [id])
+
+  leadId String?
+  lead   Lead?   @relation("ActiviteLead", fields: [leadId], references: [id], onDelete: Cascade)
+
+  opportuniteId String?
+  opportunite   Opportunite? @relation("ActiviteOpportunite", fields: [opportuniteId], references: [id], onDelete: Cascade)
+
+  dossierLldId String?
+  dossierLld   DossierLld? @relation("ActiviteLld", fields: [dossierLldId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now())
+
+  @@index([leadId])
+  @@index([opportuniteId])
+  @@index([dossierLldId])
+  @@index([dateReelle])
+  @@map("activites")
+}
+
+// ---------------------------------------------------------------------------
+// Tâches — la prochaine action datée qui empêche une carte d'être « perdue »
+// ---------------------------------------------------------------------------
+
+model Tache {
+  id      String  @id @default(cuid())
+  libelle String
+  detail  String?
+
+  echeance DateTime?
+  faite    Boolean   @default(false)
+  faiteLe  DateTime?
+  resultat String?
+
+  responsableId String?
+  responsable   Utilisateur? @relation("TacheResponsable", fields: [responsableId], references: [id])
+
+  leadId String?
+  lead   Lead?   @relation("TacheLead", fields: [leadId], references: [id], onDelete: Cascade)
+
+  opportuniteId String?
+  opportunite   Opportunite? @relation("TacheOpportunite", fields: [opportuniteId], references: [id], onDelete: Cascade)
+
+  dossierLldId String?
+  dossierLld   DossierLld? @relation("TacheLld", fields: [dossierLldId], references: [id], onDelete: Cascade)
+
+  creeLe DateTime @default(now())
+  majLe  DateTime @updatedAt
+
+  @@index([responsableId, echeance])
+  @@index([faite, echeance])
+  @@map("taches")
+}
+
+// ---------------------------------------------------------------------------
+// Journal — trace métier durable, au-delà des historiques techniques
+// ---------------------------------------------------------------------------
+
+model JournalEntree {
+  id        String    @id @default(cuid())
+  typeObjet TypeObjet
+  objetId   String
+
+  action String // PRISE_EN_CHARGE, CHANGEMENT_ETAPE, REATTRIBUTION, TRANSMISSION_LLD...
+  detail String?
+
+  /// Réattribution : le CRM conserve l'ancien et le nouveau propriétaire, la date et le motif.
+  ancienneValeur String?
+  nouvelleValeur String?
+  motif          String?
+
+  auteurId String?
+  auteur   Utilisateur? @relation("JournalAuteur", fields: [auteurId], references: [id])
+
+  creeLe DateTime @default(now())
+
+  @@index([typeObjet, objetId])
+  @@index([creeLe])
+  @@map("journal")
+}
+
+// ---------------------------------------------------------------------------
+// Compteurs de références lisibles (L-2026-00184, OPP-2026-00073, LLD-2026-00018)
+// ---------------------------------------------------------------------------
+
+model CompteurReference {
+  prefixe String @id // L, OPP, LLD, ORG
+  annee   Int
+  valeur  Int    @default(0)
+
+  @@map("compteurs_reference")
+}
+
+// ---------------------------------------------------------------------------
+// Synchronisation entrante depuis le CRM
+// ---------------------------------------------------------------------------
+
+enum ResultatSynchro {
+  CREE
+  MIS_A_JOUR
+  IGNORE_PERIME
+  IGNORE_SUPPRIME
+  ERREUR
+}
+
+/// Journal des événements reçus du CRM.
+///
+/// Sert à trois choses : diagnostiquer une donnée qui n'est pas remontée,
+/// rejouer un événement en échec, et garantir l'idempotence — un même message
+/// relivré par le bus ne doit pas être appliqué deux fois.
+model EvenementCrm {
+  id String @id @default(cuid())
+
+  /// Routing key du bus, par exemple « crm.clients.updated ».
+  routingKey String
+  /// Table d'origine côté CRM : clients, client_contacts, devis…
+  tableSource String
+  /// inserted | updated | deleted
+  action String
+  /// Identifiant de l'enregistrement dans le CRM.
+  idCrm Int
+
+  /// Empreinte du message, pour écarter un doublon de livraison.
+  empreinte String @unique
+
+  resultat ResultatSynchro
+  detail   String?
+  /// Charge utile brute, conservée pour pouvoir rejouer ou diagnostiquer.
+  charge   Json?
+
+  recuLe    DateTime  @default(now())
+  traiteLe  DateTime?
+
+  @@index([tableSource, idCrm])
+  @@index([recuLe])
+  @@map("evenements_crm")
+}
