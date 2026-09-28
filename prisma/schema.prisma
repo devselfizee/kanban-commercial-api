@@ -223,6 +223,10 @@ model Utilisateur {
   role       Role     @default(COMMERCIAL)
   actif      Boolean  @default(true)
   motDePasse String?
+  /// Identifiant de l'utilisateur dans le CRM. Absent pour un compte créé à la
+  /// main dans le kanban, que la synchronisation de l'équipe ne touche jamais.
+  idCrm         Int?      @unique
+  synchroniseLe DateTime?
   creeLe     DateTime @default(now())
   majLe      DateTime @updatedAt
 

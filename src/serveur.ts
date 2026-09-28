@@ -10,6 +10,7 @@ import cors from "cors";
 import { prisma } from "./lib/prisma";
 import { exigerAuthentification, authentificationActive } from "./lib/auth";
 import { securiser } from "./lib/routeur";
+import { synchroniserEquipe, resumer } from "./crm/equipe";
 import { Prisma } from "@prisma/client";
 import routesLeads from "./routes/leads";
 import routesOpportunites from "./routes/opportunites";
@@ -154,6 +155,26 @@ function messageCourt(erreur: unknown): string {
 process.on("unhandledRejection", (raison) => {
   console.error("Rejet de promesse non traité :", raison);
 });
+
+/**
+ * L'équipe vient du CRM : relue au démarrage, puis toutes les heures. Un
+ * commercial créé dans le CRM apparaît dans le kanban sans saisie. Un échec
+ * est journalisé et n'empêche pas l'API de servir.
+ */
+const INTERVALLE_EQUIPE_MS = 60 * 60 * 1000;
+
+async function tenirEquipeAJour() {
+  try {
+    console.log("→ " + resumer(await synchroniserEquipe()));
+  } catch (e) {
+    console.error("Synchronisation de l'équipe impossible :", e);
+  }
+}
+
+if (process.env.CRM_URL) {
+  void tenirEquipeAJour();
+  setInterval(() => void tenirEquipeAJour(), INTERVALLE_EQUIPE_MS).unref();
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`→ API du kanban commercial sur le port ${PORT}`);

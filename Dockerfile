@@ -28,6 +28,10 @@ RUN npx esbuild prisma/seed.ts --bundle --platform=node --format=cjs \
 RUN npx esbuild src/crm/reprise-cli.ts --bundle --platform=node --format=cjs \
       --packages=external --outfile=dist/reprise.cjs
 
+# La synchronisation de l'équipe, pour la relancer à la main depuis le terminal.
+RUN npx esbuild src/crm/equipe-cli.ts --bundle --platform=node --format=cjs \
+      --packages=external --outfile=dist/equipe.cjs
+
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS runner
 WORKDIR /app

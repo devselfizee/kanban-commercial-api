@@ -212,6 +212,35 @@ VALUES (gen_random_uuid()::text, 'prenom.nom@selfizee.fr', 'Nom', 'Prénom',
 
 Rôles : `COMMERCIAL`, `COLLABORATRICE_LLD`, `MANAGER`, `DIRECTION`.
 
+## L'équipe vient du CRM
+
+Les commerciaux se connectent déjà au CRM : ils ne sont pas recréés ici. Au
+démarrage puis toutes les heures, l'API lit `/api-v1/users/equipe` et tient la
+table `utilisateurs` à jour selon les **profils CRM** :
+
+| Variable | Rôle kanban | Valeur |
+|---|---|---|
+| `CRM_PROFILS_COMMERCIAL` | Commercial | `11` par défaut — « Konitys Commercial » |
+| `CRM_PROFILS_MANAGER` | Manager | à renseigner |
+| `CRM_PROFILS_DIRECTION` | Direction | à renseigner |
+| `CRM_PROFILS_LLD` | Collaboratrice LLD | profil à créer dans le CRM |
+
+Une personne qui cumule plusieurs profils prend le rôle le plus large :
+manager, direction, collaboratrice LLD, puis commercial.
+
+- Le lien se fait par l'identifiant CRM, ou à défaut par l'**e-mail** — le même
+  que celui de Keycloak. Un compte créé à la main avec cet e-mail est rattaché,
+  pas dupliqué.
+- Les comptes créés à la main sans lien CRM ne sont **jamais** modifiés.
+- Un utilisateur qui quitte le CRM ou perd son profil est **désactivé**, jamais
+  supprimé : il porte des cartes et des entrées de journal.
+- Si le CRM répond en erreur ou renvoie une liste vide, **rien n'est modifié**.
+- Le rôle vient du CRM : le changer dans le kanban serait écrasé à la
+  synchronisation suivante.
+
+Relancer sans attendre l'heure : `node dist/equipe.cjs` dans le conteneur, ou
+`POST /api/utilisateurs/synchroniser-crm` (manager).
+
 ## Synchronisation avec le CRM Selfizee
 
 **Sens unique : CRM → kanban.** Le CRM fait autorité sur l'identité du client ;

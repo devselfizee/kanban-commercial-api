@@ -12,7 +12,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "crm:reprise": "tsx src/crm/reprise-cli.ts"
+    "crm:reprise": "tsx src/crm/reprise-cli.ts",
+    "crm:equipe": "tsx src/crm/equipe-cli.ts"
   },
   "dependencies": {
     "@prisma/client": "6.16.2",

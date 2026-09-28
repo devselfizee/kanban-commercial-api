@@ -8,6 +8,7 @@
 import { routeur } from "../lib/routeur";
 import { prisma } from "../lib/prisma";
 import { peutParametrer } from "../lib/auth";
+import { synchroniserEquipe } from "../crm/equipe";
 
 const routes = routeur();
 
@@ -44,6 +45,18 @@ routes.get("/tous", async (requete, reponse) => {
       select: { id: true, prenom: true, nom: true, email: true, role: true, actif: true },
     }),
   );
+});
+
+/**
+ * Relit l'équipe depuis le CRM sans attendre le passage horaire — utile juste
+ * après avoir créé un commercial ou changé un profil. Réservé au manager.
+ */
+routes.post("/synchroniser-crm", async (requete, reponse) => {
+  if (!peutParametrer(requete.utilisateur!.role)) {
+    return reponse.status(403).json({ erreur: "Réservé au manager." });
+  }
+  const bilan = await synchroniserEquipe();
+  reponse.status(bilan.etat === "ok" ? 200 : 502).json(bilan);
 });
 
 export default routes;
