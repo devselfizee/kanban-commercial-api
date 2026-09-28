@@ -142,14 +142,16 @@ routes.get("/clients/rechercher", async (requete, reponse) => {
  * Rejouable : un client déjà repris renvoie son organisation existante.
  */
 routes.post("/clients/reprendre", async (requete, reponse) => {
-  const client = requete.body;
-  if (!client || typeof client !== "object" || !("id" in client)) {
+  // Le corps est un résultat de recherche : la fiche CRM y est jointe, parce
+  // que `list` n'offre pas d'accès par identifiant.
+  const fiche = requete.body?.ficheCrm ?? requete.body;
+  if (!fiche || typeof fiche !== "object" || !("id" in fiche)) {
     return reponse
       .status(400)
-      .json({ erreur: "La fiche du client est attendue dans le corps." });
+      .json({ erreur: "La fiche CRM du client est attendue dans le corps." });
   }
 
-  const issue = await reprendreClient(client as never);
+  const issue = await reprendreClient(fiche as never);
   if ("erreur" in issue) return reponse.status(502).json(issue);
   return reponse.status(201).json(issue);
 });

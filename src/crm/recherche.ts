@@ -31,6 +31,14 @@ export type ResultatClient = {
   estParticulier: boolean;
   /** D'où vient la ligne, pour que l'interface puisse le montrer. */
   source: "kanban" | "crm";
+  /**
+   * La fiche CRM d'origine, pour les résultats qui en viennent.
+   *
+   * Le front la renvoie telle quelle à la reprise : `list` n'offre pas d'accès
+   * par identifiant, il faudrait sinon refaire une recherche en espérant
+   * retrouver la même ligne.
+   */
+  ficheCrm?: LigneClientCrm;
 };
 
 export type ReponseRecherche = {
@@ -204,6 +212,7 @@ async function clientsDuCrm(
         ville: null,
         estParticulier: c.client_type === "person",
         source: "crm" as const,
+        ficheCrm: c,
       })),
     };
   } catch (e) {
