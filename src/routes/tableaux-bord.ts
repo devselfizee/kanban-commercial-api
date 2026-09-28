@@ -11,6 +11,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { voitToutesLesCartes } from "../lib/auth";
 import { ETAPES_OPPORTUNITE, STATUTS_LLD } from "../domaine/etapes";
+import { affairesSignees } from "../crm/statistiques";
 import {
   estTerminaleLead,
   estTerminaleLld,
@@ -296,7 +297,12 @@ routes.get("/pilotage", async (_requete, reponse) => {
         ) / transmis.length
       : null;
 
+  // L'historique des affaires signées vit dans le CRM : lu à la demande, il
+  // n'empêche jamais le reste du pilotage de s'afficher si le CRM ne répond pas.
+  const signees = await affairesSignees(12);
+
   reponse.json({
+    affairesSignees: signees,
     delaiMoyenHeures,
     delaiQualifMoyen,
     couverture,
