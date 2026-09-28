@@ -240,6 +240,39 @@ Pour étendre aux contacts et aux devis, une ligne à ajouter côté CRM dans
 $this->addBehavior('EventPublisher');
 ```
 
+### Reprise des clients déjà en base
+
+**Le bus ne publie que les modifications.** Un client créé l'an dernier et
+jamais retouché depuis n'émettra jamais rien : sans reprise, le kanban ne se
+remplirait qu'au fil des changements.
+
+La reprise parcourt `/api-v1/clients/list` et rejoue chaque enregistrement à
+travers le même chemin que le bus — donc avec le rapprochement avant création,
+l'idempotence et la préservation du travail commercial déjà saisi.
+
+```bash
+CRM_URL=https://crm.exemple.com npm run crm:reprise -- --simulation
+CRM_URL=https://crm.exemple.com npm run crm:reprise -- --executer
+```
+
+En production, depuis le terminal du conteneur :
+
+```bash
+node dist/reprise.cjs --simulation      # compte sans rien écrire
+node dist/reprise.cjs --pages 1 --executer   # un essai sur la 1re page
+node dist/reprise.cjs --executer        # la reprise complète
+```
+
+Commencer par `--simulation` : elle affiche le nombre de clients et le nombre
+de pages sans toucher à la base. La reprise est rejouable sans dégât.
+
+⚠️ **Les fiches reprises sont incomplètes.** `ClientsController::list` ne
+sélectionne que neuf champs : ni SIRET, ni adresse, ni ville, ni dates. Le
+rapprochement se fait donc sur l'e-mail, le téléphone ou le nom plutôt que sur
+le SIREN, et les champs manquants ne se rempliront qu'à la première
+modification côté CRM. Pour une reprise complète, élargir le `select` de ce
+contrôleur.
+
 ## Points à trancher avant le paramétrage définitif
 
 Implémentés avec des valeurs par défaut, à ajuster :
