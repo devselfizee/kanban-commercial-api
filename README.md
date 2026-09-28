@@ -215,8 +215,21 @@ le kanban ne lui réécrit jamais rien.
 |---|---|---|
 | Organisation | `clients` | Actif — le CRM publie déjà ces événements |
 | Contact | `client_contacts` | Nécessite une ligne côté CRM |
-| Devis | `devis` | Nécessite une ligne côté CRM |
+| Devis | `devis` | **Lus à la demande**, jamais synchronisés |
 | Lead, opportunité, dossier LLD | — | Propres au kanban |
+
+**Les devis ne passent pas par le bus.** Le CRM en compte plus de 400 000 :
+les publier reviendrait à émettre un évènement par enregistrement pour
+alimenter une table que le kanban n'affiche qu'en lecture, et la quasi-totalité
+d'entre eux ne se rattache à aucune opportunité du kanban.
+
+La fiche opportunité les lit donc à son ouverture, via `/api-v1/devis/list`,
+sans rien stocker — il suffit de renseigner `CRM_URL`. Le CRM reste la seule
+source, et rien n'est à reprendre.
+
+L'appel est plafonné à 5 secondes : un CRM injoignable n'empêche pas la fiche
+de s'afficher, et la section indique « liste indisponible » plutôt que de
+rester vide — un client sans devis et un CRM muet ne se confondent pas.
 
 Le CRM publie sur un bus RabbitMQ avec des clés `crm.{table}.{action}`. Le kanban
 lit sa queue par l'API HTTP de management — le port AMQP n'étant pas joignable

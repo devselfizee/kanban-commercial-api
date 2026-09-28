@@ -19,6 +19,7 @@ import {
   sansSuiviPlanifie,
   verifierCompatibilitePartenaire,
 } from "../domaine/regles";
+import { devisDuClient } from "../crm/devis";
 
 const routes = Router();
 
@@ -203,7 +204,18 @@ routes.get("/:id", async (requete, reponse) => {
         )
       : { aConfirmer: false, message: null };
 
-  reponse.json({ ...opp, journal, alerteCompatibilite: alerte.message });
+  // Les devis du CRM sont lus à la demande, jamais stockés : il y en a plus
+  // de 400 000, et le kanban n'en affiche qu'une liste. Un CRM injoignable
+  // n'empêche pas la fiche de s'afficher — l'état le dit, plutôt que de
+  // laisser croire qu'il n'y a aucun devis.
+  const devisCrm = await devisDuClient(opp.organisation?.idCrm);
+
+  reponse.json({
+    ...opp,
+    journal,
+    alerteCompatibilite: alerte.message,
+    devisCrm,
+  });
 });
 
 // ---------------------------------------------------------------------------
