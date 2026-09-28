@@ -117,6 +117,73 @@ export function segmentDepuisClient(client: {
   return null;
 }
 
+/** Les entités nommées qu'un e-mail en français contient réellement. */
+const ENTITES: Record<string, string> = {
+  euro: "€", eacute: "é", egrave: "è", ecirc: "ê", euml: "ë",
+  agrave: "à", acirc: "â", ccedil: "ç", icirc: "î", iuml: "ï",
+  ocirc: "ô", ugrave: "ù", ucirc: "û", uuml: "ü", oelig: "œ",
+  Eacute: "É", Egrave: "È", Agrave: "À", Ccedil: "Ç",
+  laquo: "«", raquo: "»", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”",
+  hellip: "…", ndash: "–", mdash: "—", deg: "°",
+};
+
+/**
+ * Le `brief` du CRM est le corps HTML de l'e-mail de demande. On en garde le
+ * texte, lisible, avec ses retours à la ligne : c'est le premier message du
+ * client, pas du code à afficher.
+ */
+export function texteDepuisHtml(html: string | null | undefined): string {
+  if (!html) return "";
+  return html
+    .replace(/<\s*(br|\/p|\/div|\/li|\/tr|\/h[1-6])\s*\/?>/gi, "\n")
+    .replace(/<\s*li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&([a-z]+);/gi, (tout, nom: string) => ENTITES[nom] ?? tout)
+    // En dernier : « &amp;lt; » doit donner « &lt; », pas « < ».
+    .replace(/&amp;/gi, "&")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+/g, " ").trim())
+    // Pas plus d'une ligne vide d'affilée.
+    .filter((l, i, t) => l !== "" || (i > 0 && t[i - 1] !== ""))
+    .join("\n")
+    .trim();
+}
+
+/**
+ * L'intitulé court de la carte : le nom de l'opportunité, et le type de
+ * demande s'il n'y figure pas déjà. Jamais le formulaire, qui va au journal.
+ */
+export function besoinDepuisDemande(d: {
+  nom?: string | null;
+  type_demande?: string | null;
+}): string {
+  const nom = texteDepuisHtml(d.nom).replace(/\s+/g, " ").trim();
+  const type = texteDepuisHtml(d.type_demande).replace(/\s+/g, " ").trim();
+  const avecType =
+    type && !nom.toLowerCase().includes(type.toLowerCase()) ? `${nom} — ${type}` : nom;
+  return avecType.slice(0, 300);
+}
+
+/**
+ * Comptes CRM affectés par défaut aux demandes, sans être une vraie personne
+ * qui les traite (« Commercial Selfizee », par exemple). Une demande qui ne
+ * porte qu'eux arrive dans « Nouveau — non attribué ».
+ */
+function commerciauxIgnores(): Set<number> {
+  return new Set(
+    (process.env.CRM_COMMERCIAUX_IGNORES ?? "")
+      .split(",")
+      .map((v) => Number(v.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // L'import
 // ---------------------------------------------------------------------------
@@ -292,9 +359,11 @@ async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
   });
 
   // Un commercial déjà désigné dans le CRM, et connu du kanban, prend la carte.
-  const proprietaire = d.commerciaux?.length
+  const ignores = commerciauxIgnores();
+  const commerciaux = (d.commerciaux ?? []).filter((id) => !ignores.has(id));
+  const proprietaire = commerciaux.length
     ? await prisma.utilisateur.findFirst({
-        where: { idCrm: { in: d.commerciaux }, actif: true },
+        where: { idCrm: { in: commerciaux }, actif: true },
         select: { id: true },
       })
     : null;
@@ -306,11 +375,8 @@ async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
   const prochaineActionLe = new Date();
   const prochaineActionLabel = "Premier contact suite à la demande";
 
-  const besoin = [d.nom, d.type_demande, d.brief]
-    .map((t) => t?.trim())
-    .filter(Boolean)
-    .join(" — ")
-    .slice(0, 1000);
+  const besoin = besoinDepuisDemande(d);
+  const formulaire = texteDepuisHtml(d.brief).slice(0, 20_000);
 
   const client = d.client;
   const nomBrut = client
@@ -361,6 +427,21 @@ async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
       auteurId: null,
     });
 
+    // Le formulaire rempli par le client ouvre le journal des échanges.
+    if (formulaire) {
+      await tx.activite.create({
+        data: {
+          type: "EMAIL_ENTRANT",
+          sens: "ENTRANT",
+          objet: "Demande reçue",
+          contenu: formulaire,
+          dateReelle: creeLe,
+          suiteAttendue: prochaineActionLabel,
+          leadId: lead.id,
+        },
+      });
+    }
+
     await tx.tache.create({
       data: {
         libelle: prochaineActionLabel,
@@ -372,6 +453,62 @@ async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
   });
 
   return "importee";
+}
+
+/**
+ * Refait l'import des demandes déjà reprises, après une correction de l'import.
+ *
+ * Un lead que personne n'a touché — même colonne qu'à l'import, aucune
+ * activité ni décision ajoutée, pas converti — est supprimé puis réimporté.
+ * Un lead déjà travaillé est conservé : seul son intitulé est nettoyé.
+ */
+export async function reinitialiserImport(): Promise<{
+  supprimes: number;
+  nettoyes: number;
+}> {
+  const importes = await prisma.lead.findMany({
+    where: { idCrmOpportunite: { not: null } },
+    select: {
+      id: true,
+      statut: true,
+      besoinResume: true,
+      opportunite: { select: { id: true } },
+      activites: { select: { objet: true } },
+    },
+  });
+  const ids = importes.map((l) => l.id);
+  const decisions = await prisma.journalEntree.groupBy({
+    by: ["objetId"],
+    where: { typeObjet: "LEAD", objetId: { in: ids } },
+    _count: { _all: true },
+  });
+  const nbDecisions = new Map(decisions.map((d) => [d.objetId, d._count._all]));
+
+  const intacts = importes.filter(
+    (l) =>
+      !l.opportunite &&
+      (l.statut === "NOUVEAU_NON_ATTRIBUE" || l.statut === "PREMIER_CONTACT_A_REALISER") &&
+      l.activites.every((a) => a.objet === "Demande reçue") &&
+      (nbDecisions.get(l.id) ?? 0) <= 1,
+  );
+  const intactsIds = new Set(intacts.map((l) => l.id));
+  const travailles = importes.filter((l) => !intactsIds.has(l.id));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.journalEntree.deleteMany({ where: { objetId: { in: [...intactsIds] } } });
+    // Les cascades emportent les tâches et activités de ces leads.
+    await tx.lead.deleteMany({ where: { id: { in: [...intactsIds] } } });
+    for (const l of travailles) {
+      await tx.lead.update({
+        where: { id: l.id },
+        data: { besoinResume: besoinDepuisDemande({ nom: l.besoinResume }) || null },
+      });
+    }
+    // Le curseur repart de zéro : l'import suivant remonte les 30 jours.
+    await tx.parametre.deleteMany({ where: { cle: CLE_CURSEUR } });
+  });
+
+  return { supprimes: intacts.length, nettoyes: travailles.length };
 }
 
 export function resumerDemandes(b: BilanDemandes): string {

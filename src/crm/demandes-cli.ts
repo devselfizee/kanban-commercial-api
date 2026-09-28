@@ -8,10 +8,20 @@
  * sert à le relancer tout de suite, et à lire le détail des erreurs.
  */
 
-import { importerDemandes, resumerDemandes } from "./demandes";
+import { importerDemandes, reinitialiserImport, resumerDemandes } from "./demandes";
 import { prisma } from "../lib/prisma";
 
 async function principal() {
+  // --reimporter : après une correction de l'import, refait les leads que
+  // personne n'a encore touchés. Les leads déjà travaillés sont conservés.
+  if (process.argv.includes("--reimporter")) {
+    const r = await reinitialiserImport();
+    console.log(
+      `→ Réimport : ${r.supprimes} lead(s) intact(s) retiré(s), ` +
+        `${r.nettoyes} lead(s) déjà travaillé(s) conservé(s).`,
+    );
+  }
+
   const bilan = await importerDemandes();
   console.log(resumerDemandes(bilan));
   for (const e of bilan.erreurs.slice(0, 30)) {
