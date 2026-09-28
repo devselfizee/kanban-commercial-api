@@ -63,7 +63,9 @@ routes.get("/", async (requete, reponse) => {
     where: filtre,
     orderBy: [{ rang: "asc" }, { creeLe: "desc" }],
     include: {
-      organisation: { select: { nom: true, ville: true, segment: true } },
+      organisation: {
+        select: { nom: true, ville: true, segment: true, estParticulier: true },
+      },
       contactPrincipal: { select: { nom: true, prenom: true } },
       commercial: { select: { prenom: true, nom: true } },
       dossierLld: {
@@ -103,6 +105,7 @@ routes.get("/", async (requete, reponse) => {
       priorite: o.priorite,
       projetRecherche: o.projetRecherche,
       segment: o.organisation.segment,
+      estParticulier: o.organisation.estParticulier,
       nom: o.organisation.nom,
       ville: o.organisation.ville,
       solutionEnvisagee: o.solutionEnvisagee,

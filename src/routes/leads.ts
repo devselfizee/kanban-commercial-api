@@ -45,7 +45,7 @@ routes.get("/", async (requete, reponse) => {
     where: filtre,
     orderBy: [{ rang: "asc" }, { creeLe: "desc" }],
     include: {
-      organisation: { select: { nom: true, ville: true } },
+      organisation: { select: { nom: true, ville: true, estParticulier: true } },
       contactPrincipal: { select: { nom: true, prenom: true } },
       proprietaire: { select: { prenom: true, nom: true } },
       activites: {
@@ -72,6 +72,8 @@ routes.get("/", async (requete, reponse) => {
         modeAcquisition: l.modeAcquisition,
         canalDetaille: l.canalDetaille,
         segment: l.segment,
+        estParticulier:
+          l.organisation?.estParticulier ?? l.segment === "PARTICULIER",
         projetRecherche: l.projetRecherche,
         nom: l.organisation?.nom ?? l.nomBrut,
         ville: l.ville ?? l.organisation?.ville,
