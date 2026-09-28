@@ -15,6 +15,8 @@
  * que « je n'ai pas pu regarder ».
  */
 
+import { estGrenke } from "./partenaire";
+
 const DELAI_MS = 5_000;
 
 export type DevisCrm = {
@@ -27,6 +29,8 @@ export type DevisCrm = {
   montantHt: number | null;
   montantTtc: number | null;
   typeDocument: string | null;
+  /** Facturé à GRENKE : l'affaire est financée en location financière. */
+  financeGrenke: boolean;
 };
 
 export type ResultatDevis =
@@ -44,6 +48,7 @@ type LigneCrm = {
   montant_ht?: number | null;
   total_ttc?: number | null;
   type_doc_nom?: string | null;
+  facture_a_client_id?: number | null;
 };
 
 /**
@@ -59,7 +64,9 @@ export async function devisDuClient(
 ): Promise<ResultatDevis> {
   const urlCrm = process.env.CRM_URL;
   if (!urlCrm) return { etat: "non_configure" };
-  if (!idCrm) return { etat: "ok", devis: [], total: 0 };
+  // GRENKE n'est pas un client à qui l'on vend : lister ses devis reviendrait
+  // à afficher toutes les affaires financées de Selfizee sur une fiche.
+  if (!idCrm || estGrenke(idCrm)) return { etat: "ok", devis: [], total: 0 };
 
   const url =
     `${urlCrm.replace(/\/$/, "")}/api-v1/devis/list` +
@@ -115,5 +122,6 @@ function normaliser(l: LigneCrm): DevisCrm {
     montantHt: typeof l.montant_ht === "number" ? l.montant_ht : null,
     montantTtc: typeof l.total_ttc === "number" ? l.total_ttc : null,
     typeDocument: l.type_doc_nom ?? null,
+    financeGrenke: estGrenke(l.facture_a_client_id),
   };
 }

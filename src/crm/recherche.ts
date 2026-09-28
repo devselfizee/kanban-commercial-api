@@ -16,6 +16,7 @@
 
 import { prisma } from "../lib/prisma";
 import { appliquerEvenement } from "./synchronisation";
+import { estGrenke, idClientGrenke } from "./partenaire";
 
 const DELAI_MS = 5_000;
 
@@ -81,7 +82,10 @@ export async function rechercherClient(
 
   // Un client déjà repris ne doit pas apparaître deux fois : l'organisation
   // locale fait foi, c'est elle qui porte le travail commercial.
-  const nouveaux = duCrm.clients.filter((c) => !dejaConnus.has(c.idCrm!));
+  // GRENKE finance, il n'achète pas : on ne le propose jamais comme client.
+  const nouveaux = duCrm.clients.filter(
+    (c) => !dejaConnus.has(c.idCrm!) && !estGrenke(c.idCrm),
+  );
 
   return {
     resultats: [...locales, ...nouveaux].slice(0, limite * 2),
@@ -110,6 +114,9 @@ export async function reprendreClient(
   const idCrm = Number(client.id);
   if (!Number.isInteger(idCrm)) {
     return { erreur: "Identifiant CRM invalide." };
+  }
+  if (estGrenke(idCrm)) {
+    return { erreur: "GRENKE est le partenaire de financement, pas un client." };
   }
 
   const dejaLa = await prisma.organisation.findUnique({
@@ -143,6 +150,10 @@ async function organisationsLocales(
         { nom: { contains: recherche, mode: "insensitive" } },
         { email: { contains: recherche, mode: "insensitive" } },
       ],
+      // Sans GRENKE. Écrit en deux branches : `idCrm <> 1853` seul écarterait
+      // aussi les organisations sans lien CRM, puisque NULL <> 1853 n'est pas
+      // vrai en SQL.
+      AND: [{ OR: [{ idCrm: null }, { idCrm: { not: idClientGrenke() } }] }],
     },
     select: {
       id: true,

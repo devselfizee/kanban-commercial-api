@@ -29,6 +29,7 @@ import { genererReference } from "../lib/references";
 import { journaliser } from "../lib/journal";
 import { calculerPriorite } from "../domaine/regles";
 import { reprendreClient, type LigneClientCrm } from "./recherche";
+import { estGrenke } from "./partenaire";
 
 const DELAI_MS = 15_000;
 const TAILLE_PAGE = 100;
@@ -318,6 +319,8 @@ export async function importerDemandes(): Promise<BilanDemandes> {
 
 async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
   if (d.statut && STATUTS_CLOS.has(d.statut)) return "ignoree";
+  // Une opportunité ouverte au nom de GRENKE n'est pas une demande de client.
+  if (estGrenke(d.client?.id)) return "ignoree";
 
   const deja = await prisma.lead.findUnique({
     where: { idCrmOpportunite: d.id },
