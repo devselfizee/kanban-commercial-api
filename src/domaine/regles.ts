@@ -189,17 +189,19 @@ export type AlerteCompatibilite = {
  * vérifiée auprès du partenaire.
  */
 export function verifierCompatibilitePartenaire(
-  dureeMois: number,
+  dureeMois: number | null,
   montantFinance?: number | null,
 ): AlerteCompatibilite {
   const points: string[] = [];
 
-  if (dureeMois < DUREE_GRENKE_PUBLIEE_MIN) {
+  // Durée inconnue — dossier repris d'un devis CRM, qui ne la porte pas : rien
+  // à signaler sur ce point, plutôt qu'une fausse alerte.
+  if (dureeMois != null && dureeMois < DUREE_GRENKE_PUBLIEE_MIN) {
     points.push(
       `durée de ${dureeMois} mois inférieure à la plage publiée (${DUREE_GRENKE_PUBLIEE_MIN}–${DUREE_GRENKE_PUBLIEE_MAX} mois)`,
     );
   }
-  if (dureeMois > DUREE_GRENKE_PUBLIEE_MAX) {
+  if (dureeMois != null && dureeMois > DUREE_GRENKE_PUBLIEE_MAX) {
     points.push(
       `durée de ${dureeMois} mois supérieure à la plage publiée (${DUREE_GRENKE_PUBLIEE_MIN}–${DUREE_GRENKE_PUBLIEE_MAX} mois)`,
     );

@@ -508,8 +508,16 @@ model DossierLld {
 
   /// Selfizee propose 1 à 36 mois. Une durée hors plage partenaire connue déclenche
   /// une alerte interne « compatibilité partenaire à confirmer », sans écarter le dossier.
-  dureeDemandeeMois Int
+  /// Facultative : un devis CRM ne la porte pas, elle est alors à renseigner.
+  dureeDemandeeMois Int?
   montantFinance    Decimal? @db.Decimal(12, 2)
+
+  /// Le devis CRM facturé à GRENKE d'où vient le dossier, s'il a été importé.
+  /// `statutCrm` garde le dernier statut lu : il dit si le dossier a été
+  /// déplacé à la main depuis, auquel cas l'import ne le touche plus.
+  idCrmDevis        Int?     @unique
+  referenceDevisCrm String?
+  statutCrm         String?
   loyerMensuel      Decimal? @db.Decimal(12, 2)
   locataire         String? // raison sociale du locataire si différente de l'organisation
 

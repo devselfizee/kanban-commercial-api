@@ -15,6 +15,7 @@
     "crm:reprise": "tsx src/crm/reprise-cli.ts",
     "crm:equipe": "tsx src/crm/equipe-cli.ts",
     "crm:demandes": "tsx src/crm/demandes-cli.ts",
+    "crm:financements": "tsx src/crm/financements-cli.ts",
     "demo:nettoyer": "tsx src/outils/nettoyer-demo.ts"
   },
   "dependencies": {

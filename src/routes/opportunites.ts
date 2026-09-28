@@ -20,19 +20,10 @@ import {
   verifierCompatibilitePartenaire,
 } from "../domaine/regles";
 import { devisDuClient } from "../crm/devis";
+import { CHECKLIST_INTERNE } from "../domaine/checklist";
 
 const routes = routeur();
 
-/** Checklist interne Selfizee, indépendante des pièces exigées par le partenaire. */
-const CHECKLIST_INTERNE = [
-  "Identité et coordonnées du locataire vérifiées",
-  "Équipement et configuration arrêtés avec le client",
-  "Durée et loyer confirmés avec le commercial",
-  "Offre commerciale signée ou validée par le client",
-  "Interlocuteur signataire identifié",
-  "Coordonnées de facturation et de livraison confirmées",
-  "Canal de transmission convenu avec le partenaire",
-];
 
 function dansNJours(n: number): Date {
   const d = new Date();

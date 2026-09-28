@@ -12,6 +12,7 @@ import { exigerAuthentification, authentificationActive } from "./lib/auth";
 import { securiser } from "./lib/routeur";
 import { synchroniserEquipe, resumer } from "./crm/equipe";
 import { importerDemandes, resumerDemandes } from "./crm/demandes";
+import { importerFinancements, resumerFinancements } from "./crm/financements";
 import { Prisma } from "@prisma/client";
 import routesLeads from "./routes/leads";
 import routesOpportunites from "./routes/opportunites";
@@ -192,8 +193,28 @@ async function importerNouvellesDemandes() {
   }
 }
 
+/**
+ * Les devis facturés à GRENKE deviennent des dossiers LLD, et suivent
+ * l'évolution de leur statut. Un quart d'heure suffit : un dossier de
+ * financement avance en jours, pas en minutes.
+ */
+const INTERVALLE_FINANCEMENTS_MS = 15 * 60 * 1000;
+
+async function suivreFinancements() {
+  try {
+    const bilan = await importerFinancements();
+    if (bilan.etat !== "ok" || bilan.crees || bilan.avances || bilan.erreurs.length) {
+      console.log("→ " + resumerFinancements(bilan));
+    }
+  } catch (e) {
+    console.error("Import des financements CRM impossible :", e);
+  }
+}
+
 if (process.env.CRM_URL) {
-  void tenirEquipeAJour().then(importerNouvellesDemandes);
+  setInterval(() => void suivreFinancements(), INTERVALLE_FINANCEMENTS_MS).unref();
+  // Après les demandes : un devis GRENKE se rattache au lead de sa demande.
+  void tenirEquipeAJour().then(importerNouvellesDemandes).then(suivreFinancements);
   setInterval(() => void tenirEquipeAJour(), INTERVALLE_EQUIPE_MS).unref();
   setInterval(() => void importerNouvellesDemandes(), INTERVALLE_DEMANDES_MS).unref();
 }

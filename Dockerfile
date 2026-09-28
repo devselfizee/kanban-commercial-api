@@ -36,6 +36,10 @@ RUN npx esbuild src/crm/equipe-cli.ts --bundle --platform=node --format=cjs \
 RUN npx esbuild src/crm/demandes-cli.ts --bundle --platform=node --format=cjs \
       --packages=external --outfile=dist/demandes.cjs
 
+# L'import des devis GRENKE en dossiers LLD, pour le relancer à la main.
+RUN npx esbuild src/crm/financements-cli.ts --bundle --platform=node --format=cjs \
+      --packages=external --outfile=dist/financements.cjs
+
 # Retrait du jeu de démonstration, simulation par défaut.
 RUN npx esbuild src/outils/nettoyer-demo.ts --bundle --platform=node --format=cjs \
       --packages=external --outfile=dist/nettoyer-demo.cjs
