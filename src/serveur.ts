@@ -9,6 +9,8 @@ import express from "express";
 import cors from "cors";
 import { prisma } from "./lib/prisma";
 import { exigerAuthentification, authentificationActive } from "./lib/auth";
+import { securiser } from "./lib/routeur";
+import { Prisma } from "@prisma/client";
 import routesLeads from "./routes/leads";
 import routesOpportunites from "./routes/opportunites";
 import routesLld from "./routes/lld";
@@ -86,7 +88,7 @@ app.get("/api/utilisateurs-locaux", async (_requete, reponse) => {
 app.use("/api/synchro", routesSynchro);
 
 // Tout le reste exige une identité.
-app.use("/api", exigerAuthentification);
+app.use("/api", securiser(exigerAuthentification));
 app.use("/api/utilisateurs", routesUtilisateurs);
 app.use("/api/leads", routesLeads);
 app.use("/api/opportunites", routesOpportunites);
@@ -103,11 +105,55 @@ app.use(
     reponse: express.Response,
     _suite: express.NextFunction,
   ) => {
+    if (baseInjoignable(erreur)) {
+      // 503 plutôt que 500 : le client et Coolify savent que c'est
+      // passager, et que réessayer a un sens.
+      console.error("Base de données injoignable :", messageCourt(erreur));
+      if (reponse.headersSent) return;
+      return reponse
+        .status(503)
+        .json({ erreur: "Base de données momentanément injoignable." });
+    }
     console.error("Erreur non interceptée :", erreur);
     if (reponse.headersSent) return;
     reponse.status(500).json({ erreur: "Erreur interne du serveur." });
   },
 );
+
+/**
+ * Les codes Prisma d'une base injoignable — connexion refusée, hôte
+ * introuvable, délai dépassé, connexion fermée par le serveur.
+ */
+const CODES_BASE_INJOIGNABLE = new Set(["P1001", "P1002", "P1008", "P1017"]);
+
+function baseInjoignable(erreur: unknown): boolean {
+  if (erreur instanceof Prisma.PrismaClientInitializationError) return true;
+  return (
+    erreur instanceof Prisma.PrismaClientKnownRequestError &&
+    CODES_BASE_INJOIGNABLE.has(erreur.code)
+  );
+}
+
+/**
+ * La ligne utile du message : Prisma en met une trentaine, et la cause —
+ * « Can't reach database server at … » — n'est pas la première.
+ */
+function messageCourt(erreur: unknown): string {
+  const m = erreur instanceof Error ? erreur.message : String(erreur);
+  const lignes = m.split("\n").map((l) => l.trim()).filter(Boolean);
+  return (
+    lignes.find((l) => /can't reach|refus|timed out|ECONN|ENOTFOUND/i.test(l)) ??
+    lignes[0] ??
+    m
+  );
+}
+
+// Dernier filet : un rejet hors de toute requête ne doit pas tuer l'API.
+// Il est journalisé bruyamment — ce n'est jamais normal, mais un serveur qui
+// continue de répondre vaut mieux qu'une boucle de redémarrages.
+process.on("unhandledRejection", (raison) => {
+  console.error("Rejet de promesse non traité :", raison);
+});
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`→ API du kanban commercial sur le port ${PORT}`);

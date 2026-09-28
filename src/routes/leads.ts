@@ -5,7 +5,7 @@
  * refléter pour guider la saisie, il ne peut pas les contourner.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import { z } from "zod";
 import type { Prisma, StatutLead } from "@prisma/client";
 import { prisma } from "../lib/prisma";
@@ -26,7 +26,7 @@ import {
   sansSuiviPlanifie,
 } from "../domaine/regles";
 
-const routes = Router();
+const routes = routeur();
 
 // ---------------------------------------------------------------------------
 // Lecture du tableau

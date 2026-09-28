@@ -7,7 +7,7 @@
  * n'expose de probabilité d'acceptation.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import type { Prisma, StatutLld } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { journaliser } from "../lib/journal";
@@ -24,7 +24,7 @@ import {
   verifierCompatibilitePartenaire,
 } from "../domaine/regles";
 
-const routes = Router();
+const routes = routeur();
 
 function dansNJours(n: number): Date {
   const d = new Date();

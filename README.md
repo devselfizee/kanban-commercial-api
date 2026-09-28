@@ -182,6 +182,12 @@ pour désigner le compte. Ce mode ne doit jamais être exposé publiquement.
 `docker-entrypoint.sh` applique `prisma migrate deploy` avant de démarrer : les
 migrations suivent chaque déploiement sans intervention.
 
+**Si PostgreSQL devient injoignable**, l'API ne tombe pas. Chaque requête
+reçoit un `503` « base momentanément injoignable », `/api/sante` répond `503`
+`base_injoignable`, et le service reprend de lui-même au retour de la base —
+sans boucle de redémarrages. Express 4 ne capture pas les rejets des handlers
+`async` ; c'est `src/lib/routeur.ts` qui s'en charge pour toutes les routes.
+
 ### Après le premier déploiement
 
 La base démarre **vide**. Pour la peupler avec le jeu de démonstration, ouvrir un

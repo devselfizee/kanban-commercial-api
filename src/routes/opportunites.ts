@@ -6,7 +6,7 @@
  * derrière la procédure de financement.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import type { EtapeCommerciale, Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { genererReference } from "../lib/references";
@@ -21,7 +21,7 @@ import {
 } from "../domaine/regles";
 import { devisDuClient } from "../crm/devis";
 
-const routes = Router();
+const routes = routeur();
 
 /** Checklist interne Selfizee, indépendante des pièces exigées par le partenaire. */
 const CHECKLIST_INTERNE = [

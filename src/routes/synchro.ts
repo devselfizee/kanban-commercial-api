@@ -6,12 +6,12 @@
  * Elle est donc montée avant la garde d'authentification du serveur.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import { prisma } from "../lib/prisma";
 import { configDepuisEnv, lireMessages, profondeurQueue } from "../crm/rabbitmq";
 import { appliquerEvenement } from "../crm/synchronisation";
 
-const routes = Router();
+const routes = routeur();
 
 /** Taille d'un lot : borne la durée d'un appel. */
 const LOT = 50;
@@ -112,7 +112,7 @@ routes.get("/etat", async (requete, reponse) => {
  * Contrairement aux deux routes précédentes, celle-ci est consultée par un
  * humain : elle est montée séparément sous la garde d'authentification.
  */
-export const routesDiagnostic = Router();
+export const routesDiagnostic = routeur();
 
 routesDiagnostic.get("/", async (_requete, reponse) => {
   const config = configDepuisEnv();

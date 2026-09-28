@@ -6,7 +6,7 @@
  * indicateur de solvabilité.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { voitToutesLesCartes } from "../lib/auth";
@@ -19,7 +19,7 @@ import {
   sansSuiviPlanifie,
 } from "../domaine/regles";
 
-const routes = Router();
+const routes = routeur();
 
 // ---------------------------------------------------------------------------
 // Mes actions

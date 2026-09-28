@@ -5,11 +5,11 @@
  * la liste de l'équipe alimente les listes déroulantes d'attribution.
  */
 
-import { Router } from "express";
+import { routeur } from "../lib/routeur";
 import { prisma } from "../lib/prisma";
 import { peutParametrer } from "../lib/auth";
 
-const routes = Router();
+const routes = routeur();
 
 /** L'utilisateur courant, tel que le back l'a identifié. */
 routes.get("/moi", (requete, reponse) => {
