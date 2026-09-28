@@ -82,6 +82,7 @@ routes.get("/", async (requete, reponse) => {
         contact: l.contactPrincipal
           ? `${l.contactPrincipal.prenom ?? ""} ${l.contactPrincipal.nom}`.trim()
           : (l.emailBrut ?? l.telephoneBrut),
+        responsableId: l.proprietaireId,
         responsable: l.proprietaire
           ? `${l.proprietaire.prenom} ${l.proprietaire.nom}`
           : null,

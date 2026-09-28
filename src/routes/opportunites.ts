@@ -121,6 +121,7 @@ routes.get("/", async (requete, reponse) => {
       contact: o.contactPrincipal
         ? `${o.contactPrincipal.prenom ?? ""} ${o.contactPrincipal.nom}`.trim()
         : null,
+      responsableId: o.commercialId,
       responsable: o.commercial ? `${o.commercial.prenom} ${o.commercial.nom}` : null,
       prochaineActionLe: o.prochaineActionLe,
       prochaineActionLabel: o.prochaineActionLabel,

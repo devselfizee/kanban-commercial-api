@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "crm:reprise": "tsx src/crm/reprise-cli.ts",
-    "crm:equipe": "tsx src/crm/equipe-cli.ts"
+    "crm:equipe": "tsx src/crm/equipe-cli.ts",
+    "demo:nettoyer": "tsx src/outils/nettoyer-demo.ts"
   },
   "dependencies": {
     "@prisma/client": "6.16.2",

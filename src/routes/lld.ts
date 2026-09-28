@@ -159,6 +159,7 @@ routes.get("/", async (requete, reponse) => {
         prochaineActionLe: d.prochaineActionLe,
         prochaineActionLabel: d.prochaineActionLabel,
         prochaineActionEnRetard: estEnRetard(d.prochaineActionLe, maintenant),
+        responsableId: d.collaboratriceId,
         responsable: d.collaboratrice
           ? `${d.collaboratrice.prenom} ${d.collaboratrice.nom}`
           : null,

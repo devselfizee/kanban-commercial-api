@@ -200,6 +200,22 @@ node dist/seed.cjs
 ⚠️ Le seed **efface toutes les données existantes**. Il ne doit jamais être
 exécuté sur une base contenant de vraies données.
 
+### Retirer le jeu de démonstration
+
+```bash
+node dist/nettoyer-demo.cjs              # simulation : affiche ce qui serait retiré
+node dist/nettoyer-demo.cjs --executer   # retire
+```
+
+Retire les dix organisations du seed et tout ce qui s'y rattache (contacts,
+leads, opportunités, dossiers LLD, activités, tâches, journal), ainsi que les
+cinq comptes fictifs. Les organisations et comptes venus du CRM ne sont jamais
+touchés, même homonymes. Un compte fictif encore lié à une vraie donnée est
+désactivé plutôt que supprimé. Tout se fait en une transaction.
+
+Les compteurs de référence ne sont pas remis à zéro : `L-2026-00009` suivra
+`L-2026-00008`, et une référence ne désigne jamais deux cartes.
+
 Sans seed, aucun utilisateur n'existe et la connexion aboutira sur « aucun compte
 ne vous correspond ». Les créer en SQL, avec **les mêmes e-mails que dans
 Keycloak** :
