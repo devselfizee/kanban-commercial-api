@@ -218,6 +218,27 @@ le kanban ne lui réécrit jamais rien.
 | Devis | `devis` | **Lus à la demande**, jamais synchronisés |
 | Lead, opportunité, dossier LLD | — | Propres au kanban |
 
+### Ce qui est repris, et ce qui ne l'est pas
+
+Le CRM compte **169 708 clients** et environ **500 000 contacts**. Les importer
+tous encombrerait la base pour en utiliser quelques centaines : on ne travaille
+que sur les affaires en cours.
+
+Une organisation n'entre donc dans le kanban qu'au moment où un commercial
+rattache un client à un lead — par `GET /api/leads/clients/rechercher`, qui
+interroge le kanban **et** le CRM, puis `POST /api/leads/clients/reprendre`.
+
+Cette reprise à l'unité passe par le même chemin que le bus, donc avec
+rapprochement et idempotence : rattacher deux fois le même client ne crée pas
+de doublon.
+
+Le bus continue en parallèle : il met à jour les organisations déjà présentes
+quand elles changent côté CRM, et ignore les 169 000 autres.
+
+⚠️ `npm run crm:reprise` reprend **tous** les clients. Avec ce volume, ce n'est
+pas ce que vous voulez — il reste utile pour un sous-ensemble ou une base de
+test.
+
 **Les devis ne passent pas par le bus.** Le CRM en compte plus de 400 000 :
 les publier reviendrait à émettre un évènement par enregistrement pour
 alimenter une table que le kanban n'affiche qu'en lecture, et la quasi-totalité

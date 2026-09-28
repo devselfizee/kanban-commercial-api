@@ -12,6 +12,7 @@ import { prisma } from "../lib/prisma";
 import { genererReference } from "../lib/references";
 import { journaliser } from "../lib/journal";
 import { peutReattribuer, voitToutesLesCartes } from "../lib/auth";
+import { rechercherClient, reprendreClient } from "../crm/recherche";
 import {
   calculerPriorite,
   estEnRetard,
@@ -108,6 +109,49 @@ routes.get("/", async (requete, reponse) => {
       };
     }),
   );
+});
+
+// ---------------------------------------------------------------------------
+// Recherche de client
+// ---------------------------------------------------------------------------
+
+/**
+ * Cherche un client dans le kanban et dans le CRM.
+ *
+ * Le CRM compte près de 170 000 clients : les importer tous encombrerait la
+ * base pour en utiliser quelques centaines. Une organisation n'est créée ici
+ * qu'au moment où un commercial rattache un client à un lead.
+ *
+ * La réponse dit si le CRM a pu être interrogé — une recherche partielle ne
+ * doit pas passer pour une absence de résultat.
+ *
+ * ⚠ Déclarée avant `/:id`, sans quoi Express prendrait « clients » pour un
+ * identifiant de lead.
+ */
+routes.get("/clients/rechercher", async (requete, reponse) => {
+  reponse.json(await rechercherClient(String(requete.query.q ?? "")));
+});
+
+/**
+ * Reprend un client du CRM dans le kanban, et renvoie son organisation.
+ *
+ * Le corps est la fiche renvoyée par la recherche : elle évite de redemander
+ * au CRM un enregistrement qu'on vient d'obtenir, et `list` n'offre de toute
+ * façon pas d'accès par identifiant.
+ *
+ * Rejouable : un client déjà repris renvoie son organisation existante.
+ */
+routes.post("/clients/reprendre", async (requete, reponse) => {
+  const client = requete.body;
+  if (!client || typeof client !== "object" || !("id" in client)) {
+    return reponse
+      .status(400)
+      .json({ erreur: "La fiche du client est attendue dans le corps." });
+  }
+
+  const issue = await reprendreClient(client as never);
+  if ("erreur" in issue) return reponse.status(502).json(issue);
+  return reponse.status(201).json(issue);
 });
 
 // ---------------------------------------------------------------------------
