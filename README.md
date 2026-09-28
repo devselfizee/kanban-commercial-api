@@ -228,6 +228,38 @@ VALUES (gen_random_uuid()::text, 'prenom.nom@selfizee.fr', 'Nom', 'Prénom',
 
 Rôles : `COMMERCIAL`, `COLLABORATRICE_LLD`, `MANAGER`, `DIRECTION`.
 
+## Les demandes du CRM deviennent des leads
+
+Le CRM reçoit environ 70 demandes par jour ouvré, surtout par le formulaire du
+site, et en fait des opportunités. En 2026, 94 % sont restées « Ouverte »,
+toutes dans la première étape de leur pipeline : elles arrivent, et leur suite
+n'est pas suivie.
+
+Le kanban les reprend comme **leads à qualifier**, au démarrage puis toutes les
+5 minutes, par `/api-v1/opportunites/demandes` :
+
+- **pipelines « Pros » et « Achats »** seulement (`CRM_PIPELINES_DEMANDES`) :
+  les particuliers, 82 % du volume, suivent un parcours presque automatique
+  dans le CRM ;
+- **30 jours** au premier passage (`CRM_DEMANDES_JOURS_INITIAUX`), puis
+  uniquement les nouvelles demandes ;
+- les affaires déjà gagnées, perdues, annulées ou fermées sont ignorées.
+
+Chaque demande donne un lead dans « Nouveau — non attribué », ou dans « Premier
+contact à réaliser » si un commercial connu du kanban lui est déjà affecté
+dans le CRM. Le client est créé ou rattaché, avec SIRET et adresse. Le lead
+garde son numéro de demande, sa date de réception réelle, la source et les
+secteurs tels que le CRM les nomme.
+
+L'import avance par identifiant d'opportunité, mémorisé dans `parametres` : il
+ne rate rien et ne prend rien deux fois. Une demande qui ne peut pas être
+importée est signalée au bilan sans bloquer les suivantes.
+
+Correspondances (`src/crm/demandes.ts`) : la source lead donne le mode et le
+canal (« Site internet » → entrant, formulaire du site) ; le secteur d'activité
+donne le segment (26 secteurs vers les 11 segments du document) ; un
+particulier est toujours `PARTICULIER`.
+
 ## L'équipe vient du CRM
 
 Les commerciaux se connectent déjà au CRM : ils ne sont pas recréés ici. Au

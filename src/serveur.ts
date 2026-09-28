@@ -11,6 +11,7 @@ import { prisma } from "./lib/prisma";
 import { exigerAuthentification, authentificationActive } from "./lib/auth";
 import { securiser } from "./lib/routeur";
 import { synchroniserEquipe, resumer } from "./crm/equipe";
+import { importerDemandes, resumerDemandes } from "./crm/demandes";
 import { Prisma } from "@prisma/client";
 import routesLeads from "./routes/leads";
 import routesOpportunites from "./routes/opportunites";
@@ -171,9 +172,30 @@ async function tenirEquipeAJour() {
   }
 }
 
+/**
+ * Les demandes entrantes du CRM deviennent des leads, toutes les 5 minutes :
+ * une demande du site doit apparaître dans le tableau avant que le client ne
+ * relance. L'équipe passe d'abord, pour qu'un commercial désigné dans le CRM
+ * soit déjà connu quand sa demande arrive.
+ */
+const INTERVALLE_DEMANDES_MS = 5 * 60 * 1000;
+
+async function importerNouvellesDemandes() {
+  try {
+    const bilan = await importerDemandes();
+    // Un passage sans nouveauté ne mérite pas une ligne toutes les 5 minutes.
+    if (bilan.etat !== "ok" || bilan.importees || bilan.erreurs.length) {
+      console.log("→ " + resumerDemandes(bilan));
+    }
+  } catch (e) {
+    console.error("Import des demandes CRM impossible :", e);
+  }
+}
+
 if (process.env.CRM_URL) {
-  void tenirEquipeAJour();
+  void tenirEquipeAJour().then(importerNouvellesDemandes);
   setInterval(() => void tenirEquipeAJour(), INTERVALLE_EQUIPE_MS).unref();
+  setInterval(() => void importerNouvellesDemandes(), INTERVALLE_DEMANDES_MS).unref();
 }
 
 app.listen(PORT, "0.0.0.0", () => {

@@ -32,6 +32,10 @@ RUN npx esbuild src/crm/reprise-cli.ts --bundle --platform=node --format=cjs \
 RUN npx esbuild src/crm/equipe-cli.ts --bundle --platform=node --format=cjs \
       --packages=external --outfile=dist/equipe.cjs
 
+# L'import des demandes CRM, pour le relancer à la main depuis le terminal.
+RUN npx esbuild src/crm/demandes-cli.ts --bundle --platform=node --format=cjs \
+      --packages=external --outfile=dist/demandes.cjs
+
 # Retrait du jeu de démonstration, simulation par défaut.
 RUN npx esbuild src/outils/nettoyer-demo.ts --bundle --platform=node --format=cjs \
       --packages=external --outfile=dist/nettoyer-demo.cjs

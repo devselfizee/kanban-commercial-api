@@ -392,6 +392,16 @@ model Lead {
   /// Position dans la colonne du kanban.
   rang Int @default(0)
 
+  /// La demande CRM d'origine, pour un lead importé automatiquement. Unique :
+  /// une demande ne donne jamais deux leads, même si l'import repasse dessus.
+  idCrmOpportunite Int?      @unique
+  numeroCrm        String?
+  /// Libellés tels que le CRM les nomme — sa source lead et ses secteurs —
+  /// conservés à côté de leur traduction dans les listes du kanban.
+  sourceCrm        String?
+  secteurCrm       String?
+  demandeCrmLe     DateTime?
+
   entreEnEtapeLe DateTime @default(now()) // âge dans l'étape
   creeLe         DateTime @default(now())
   majLe          DateTime @updatedAt
@@ -775,4 +785,13 @@ model EvenementCrm {
   @@index([tableSource, idCrm])
   @@index([recuLe])
   @@map("evenements_crm")
+}
+
+/// Petits réglages persistants : où l'import des demandes CRM s'est arrêté.
+model Parametre {
+  cle    String   @id
+  valeur String
+  majLe  DateTime @updatedAt
+
+  @@map("parametres")
 }
