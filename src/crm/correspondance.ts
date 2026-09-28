@@ -16,7 +16,7 @@
  */
 
 import type { Prisma, SegmentClient } from "@prisma/client";
-import { normaliserEmail, normaliserNom, normaliserTelephone } from "@/domaine/regles";
+import { normaliserEmail, normaliserNom, normaliserTelephone } from "../domaine/regles";
 
 // ---------------------------------------------------------------------------
 // Forme des enregistrements reçus

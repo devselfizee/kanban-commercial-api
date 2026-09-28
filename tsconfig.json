@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "lib": ["ES2023", "DOM"],
     "outDir": "dist",
     "rootDir": "src",
@@ -13,9 +13,7 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
-    "noUncheckedIndexedAccess": false,
-    "paths": { "@/*": ["./src/*"] },
-    "baseUrl": "."
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

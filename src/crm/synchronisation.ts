@@ -15,8 +15,8 @@
 
 import { createHash } from "node:crypto";
 import type { Prisma, ResultatSynchro } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { genererReference } from "@/lib/references";
+import { prisma } from "../lib/prisma";
+import { genererReference } from "../lib/references";
 import {
   type ClientCrm,
   type ContactCrm,

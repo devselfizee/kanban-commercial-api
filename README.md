@@ -188,7 +188,7 @@ La base démarre **vide**. Pour la peupler avec le jeu de démonstration, ouvrir
 terminal sur le conteneur :
 
 ```bash
-node dist/seed.mjs
+node dist/seed.cjs
 ```
 
 ⚠️ Le seed **efface toutes les données existantes**. Il ne doit jamais être

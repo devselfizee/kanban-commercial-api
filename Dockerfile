@@ -21,8 +21,8 @@ RUN npm run build
 
 # Le seed est transpilé pour pouvoir être exécuté en production sans `tsx`,
 # qui reste une dépendance de développement.
-RUN npx esbuild prisma/seed.ts --bundle --platform=node --format=esm \
-      --packages=external --outfile=dist/seed.mjs
+RUN npx esbuild prisma/seed.ts --bundle --platform=node --format=cjs \
+      --packages=external --outfile=dist/seed.cjs
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS runner
