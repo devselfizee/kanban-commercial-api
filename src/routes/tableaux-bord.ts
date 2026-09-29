@@ -285,6 +285,12 @@ routes.get("/pilotage", async (_requete, reponse) => {
     valeur: dossiers
       .filter((d) => d.statut === statut)
       .reduce((s, d) => s + Number(d.loyerMensuel ?? 0), 0),
+    // Les dossiers repris des devis GRENKE n'ont pas de loyer, mais un montant
+    // financé : sans lui, leur valeur n'apparaîtrait nulle part. Les deux ne
+    // s'additionnent pas.
+    montantFinance: dossiers
+      .filter((d) => d.statut === statut)
+      .reduce((s, d) => s + Number(d.montantFinance ?? 0), 0),
   })).filter((s) => s.nb > 0);
 
   // --- Délai de traitement LLD ---------------------------------------------
