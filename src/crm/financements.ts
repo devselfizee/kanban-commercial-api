@@ -77,6 +77,28 @@ export function etapeDepuisStatutLld(statut: StatutLld): EtapeCommerciale {
   }
 }
 
+/**
+ * La durée de location, quand l'intitulé du devis la donne — « Location 36
+ * mois. » est l'usage chez Selfizee. Une durée mentionnée près de « location »,
+ * « LLD », « loyer » ou « durée » est préférée à un nombre de mois isolé.
+ * Hors de 1 à 72 mois, la valeur est tenue pour une coïncidence et ignorée.
+ */
+export function dureeDepuisIntitule(texte: string | null | undefined): number | null {
+  if (!texte) return null;
+  const propre = texteDepuisHtml(texte).replace(/\s+/g, " ");
+  const motif =
+    propre.match(/(?:location|lld|loyer|dur[ée]e)[^\d]{0,30}(\d{1,2})\s*mois/i) ??
+    propre.match(/(\d{1,2})\s*mois/i);
+  const n = motif ? Number(motif[1]) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 72 ? n : null;
+}
+
+/** Le CRM renvoie certains identifiants en texte (« 33 ») : on les normalise. */
+function entier(v: unknown): number | null {
+  const n = Number(v);
+  return v != null && v !== "" && Number.isInteger(n) && n > 0 ? n : null;
+}
+
 const LIBELLE_STATUT_DEVIS: Record<string, string> = {
   draft: "brouillon", sent: "envoyé", lu: "lu", open: "ouvert", clicked: "cliqué",
   relance: "relancé", accepted: "accepté", acompte: "acompte versé",
@@ -100,8 +122,9 @@ type DevisFinance = {
   status?: string | null;
   date_crea?: string | null;
   montant_ht?: number | null;
-  opportunite_id?: number | null;
-  ref_commercial_id?: number | null;
+  // Arrivent parfois en texte : toujours lus à travers `entier()`.
+  opportunite_id?: number | string | null;
+  ref_commercial_id?: number | string | null;
   client?: (LigneClientCrm & { ville?: string | null }) | null;
 };
 
@@ -280,17 +303,19 @@ async function creer(d: DevisFinance): Promise<"crees"> {
   if ("erreur" in reprise) throw new Error(`client ${d.client.id} : ${reprise.erreur}`);
   const organisationId = reprise.organisationId;
 
-  const commercial = d.ref_commercial_id
+  const idCommercial = entier(d.ref_commercial_id);
+  const commercial = idCommercial
     ? await prisma.utilisateur.findFirst({
-        where: { idCrm: d.ref_commercial_id, actif: true },
+        where: { idCrm: idCommercial, actif: true },
         select: { id: true },
       })
     : null;
 
   // Le lead d'origine, si la demande CRM a déjà été importée comme lead.
-  const lead = d.opportunite_id
+  const idOpportunite = entier(d.opportunite_id);
+  const lead = idOpportunite
     ? await prisma.lead.findUnique({
-        where: { idCrmOpportunite: d.opportunite_id },
+        where: { idCrmOpportunite: idOpportunite },
         select: { id: true, opportunite: { select: { id: true, dossierLld: { select: { id: true } } } } },
       })
     : null;
@@ -302,6 +327,7 @@ async function creer(d: DevisFinance): Promise<"crees"> {
     texteDepuisHtml(d.objet).replace(/\s+/g, " ").trim().slice(0, 200) ||
     `Location financière — devis ${d.indent ?? d.id}`;
   const reference = d.indent ?? `#${d.id}`;
+  const duree = dureeDepuisIntitule(d.objet);
 
   await prisma.$transaction(async (tx) => {
     // Une opportunité déjà issue de ce lead, sans dossier, est réutilisée :
@@ -357,7 +383,9 @@ async function creer(d: DevisFinance): Promise<"crees"> {
       data: {
         reference: refLld,
         statut,
-        dureeDemandeeMois: null, // le devis ne la porte pas : à renseigner
+        // Lue dans l'intitulé du devis quand il la donne ; sinon à renseigner,
+        // jamais inventée.
+        dureeDemandeeMois: duree,
         montantFinance: d.montant_ht ?? null,
         opportuniteId,
         commercialId: commercial?.id ?? null,
@@ -379,7 +407,8 @@ async function creer(d: DevisFinance): Promise<"crees"> {
         `${refLld} importé du devis CRM ${reference} (${libelleStatut(d.status)})` +
         (statut === "LIVRAISON_CONFIRMEE_CONTRAT_ACTIF"
           ? " — contrat actif : facture émise à GRENKE"
-          : ""),
+          : "") +
+        (duree ? ` — durée de ${duree} mois lue dans l'intitulé du devis` : ""),
       auteurId: null,
     });
 

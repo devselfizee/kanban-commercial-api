@@ -345,7 +345,8 @@ async function importerUne(d: DemandeCrm): Promise<"importee" | "ignoree"> {
   const [modeAcquisition, canalDetaille] = acquisitionDepuisSource(d.source);
   const segment = segmentDepuisClient(d.client ?? null);
   const projetRecherche: ProjetRecherche =
-    d.pipeline_id === PIPELINE_ACHATS ? "ACHAT" : "A_PRECISER";
+    // Number() : le CRM renvoie certains identifiants en texte.
+    Number(d.pipeline_id) === PIPELINE_ACHATS ? "ACHAT" : "A_PRECISER";
 
   const creeLe = d.created ? new Date(d.created.replace(" ", "T")) : new Date();
   const echeance = d.date_echeance ? new Date(d.date_echeance) : null;
